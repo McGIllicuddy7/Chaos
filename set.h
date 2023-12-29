@@ -54,9 +54,16 @@ namespace Chaos{
             #endif
             size_t alloc_sz = pow(2,ceil(log2(list.size())));
             alloc_sz = alloc_sz>8 ? alloc_sz :8;
+            #ifdef DEBUG_MEMORY
             printf("alloc size: %zu list size %zu\n", alloc_sz, list.size());
+            #endif
+            #ifdef DEBUG_ALL
+            printf("alloc size: %zu list size %zu\n", alloc_sz, list.size());
+            #endif
             this->data =(T*)mem_alloc(alloc_sz*sizeof(T));
-            memcpy(this->data, list.begin(), list.size()*sizeof(T));
+            for(int i =0; i<list.size(); i++){
+                this->data[i] = list.begin()[i];
+            }
             this->count = list.size();
             this->allocated_length = alloc_sz;
             #ifdef DEBUG_MEMORY
@@ -92,13 +99,7 @@ namespace Chaos{
             printf(" to ");
             t.debug_println();
             #endif
-            void * tmp = this->data;
-            free(tmp);
-            this->data = (T*)mem_alloc(t.allocated_length*sizeof(T));
-            this->count = t.count;
-            this->allocated_length = t.allocated_length;
-            memset(this->data, 0, this->allocated_length*sizeof(T));
-            memcpy(this->data, t.data, this->count*sizeof(T));
+            mem_realloc(this->data, this->allocated_length*sizeof(T));
         }
         bool operator== (const Set<T> &t) const &{
             if(t.count != this->count){
@@ -118,8 +119,13 @@ namespace Chaos{
             }
             if(this->count+1>this->allocated_length){
                 this->allocated_length = this->allocated_length*2;
-                printf("%p\n", (void*)this->data);
-                this->data = (T*)realloc(this->data, this->allocated_length*sizeof(T));
+                void * tmp = realloc(this->data, this->allocated_length*sizeof(T));
+                if (tmp == NULL) {
+                     free(tmp);
+                } 
+                else {
+                    this->data = (int*)tmp;
+                }
             }
             for(int i =this->count+1; i>idx; i--){
                     this->data[i] = this->data[i-1];
@@ -128,10 +134,17 @@ namespace Chaos{
             this->count++;
         }
         void Remove(T value){
-
+            int idx = FindLocation(value);
+            if(idx>=this->count || idx<0){
+                return;
+            }
+            for(int i = idx+1; i<this->count; i++){
+                this->data[i-1] = this->data[i];
+            }
+            this->count--;
         }
         bool Contains(const T &value) const &{
-
+            return this->data[FindLocation(value)] == value;
         }
         size_t Cardinality() const &{
             return this->count;
@@ -140,27 +153,12 @@ namespace Chaos{
             if(this->count<1){
                 return 0;
             }
-            if(this->data[this->count-1]<value){
-                return this->count;
-            }
-            if(this->data[0]>value){
-                return 0;
-            }
-            int idx = this->count/2;
-            int addr = this->count/2;
-            while(addr>0){
-                if(this->data[idx]<value){
-                    idx += addr;
+            for(int i =0; i<this->count; i++){
+                if(value<=this->data[i]){
+                    return i;
                 }
-                else if(this->data[idx] == value){
-                    return idx;
-                }
-                else{
-                    idx -= addr;
-                }
-                addr = addr/2;
             }
-            return idx;
+            return this->count;
         }
         void debug_println() const &{
             printf("{");
@@ -181,6 +179,26 @@ namespace Chaos{
                 }
             }
             printf("}");
+        }
+        void iter(void(*foo)(T const))const &{
+            for(int i =0; i<this->count;i++){
+                foo(data[i]);
+            }
+        }
+        void iter_mut(void(*foo)(T&)){
+            for(int i =0; i<this->count; i++){
+                foo(data[i]);
+            }
+        }
+        void iter(void(*foo)(T const , void *),void * args = NULL) const &{
+            for(int i =0; i<this->count;i++){
+                foo(data[i],args);
+            }
+        }
+        void iter_mut( void(*foo)(T&, void *), void * args = NULL){
+            for(int i =0; i<this->count; i++){
+                foo(data[i], args);
+            }
         }
     };
 };
